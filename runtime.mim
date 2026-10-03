@@ -21,9 +21,15 @@
 ///
 /// ## Dependencies
 ///
+plugin compile;
 plugin core;
 plugin mem;
 plugin cps;
+///
+/// ## Backend
+///
+/// Drop-in replacement for `ll.emit` that also lowers the assertions below.
+axm ll_emit: compile.Phase;
 ///
 /// ## Assertions
 ///

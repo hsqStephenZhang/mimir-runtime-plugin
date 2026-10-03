@@ -5,6 +5,11 @@
 using namespace mim;
 using namespace mim::plug;
 
-extern "C" MIM_EXPORT Plugin mim_get_plugin() {
-    return {"runtime", MIM_VERSION, runtime::register_normalizers, nullptr};
+namespace mim::plug::runtime {
+void register_phases(Flags2Phases&);
+}
+
+MIM_PLUGIN_ENTRY(runtime) {
+    plugin.register_normalizers = runtime::register_normalizers;
+    plugin.register_phases      = runtime::register_phases;
 }

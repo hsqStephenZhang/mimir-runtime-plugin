@@ -9,5 +9,6 @@ add_mim_plugin(runtime
     SOURCES
         src/runtime.cpp
         src/normalizers.cpp
+        src/phase/ll_emit.cpp
     INSTALL
 )
