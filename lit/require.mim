@@ -12,9 +12,9 @@ extern lam dynamic(condition: Bool): Nat =
         lam body(): Nat = 7;
     end;
 
+// CHECK: runtime.fail
 // CHECK-LABEL: extern lam dynamic
 // CHECK: runtime.static_check
-// CHECK: runtime.fail
 // CHECK-LABEL: extern lam static_success
 // CHECK-NOT: runtime.static_check
 // CHECK-NOT: runtime.fail
