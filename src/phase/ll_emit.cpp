@@ -38,25 +38,26 @@ public:
     std::optional<std::string> isa_targetspecific_intrinsic(ll::BB&, const Def*) override;
 
 private:
-    std::string message_global(const Def* def, std::string_view prefix, std::string_view message);
+    void define_message(std::string_view global, std::string_view message);
     void emit_fail(ll::BB&, const Def*);
     void emit_assert(ll::BB&, const Def*);
+
+    DefSet emitted_;
 };
 
-std::string Emitter::message_global(const Def* def, std::string_view prefix, std::string_view message) {
-    auto global = std::format("@.mimir_{}_{}", prefix, def->gid());
+void Emitter::define_message(std::string_view global, std::string_view message) {
     std::print(vars_decls_, "{} = private unnamed_addr constant [{} x i8] c\"{}\"\n", global, message.size() + 1,
                llvm_string(message));
     declare("i32 @puts(ptr)");
     declare("i32 @fflush(ptr)");
     declare("void @abort() noreturn");
-    return global;
 }
 
 void Emitter::emit_fail(ll::BB& bb, const Def* def) {
-    auto fail    = Axm::expect<runtime::fail>(def, "a runtime failure");
-    auto message = tuple2str(fail->arg());
-    auto global  = message_global(def, "fail", message);
+    auto fail   = Axm::expect<runtime::fail>(def, "a runtime failure");
+    auto global = std::format("@.mimir_fail_{}", def->gid());
+    // One `runtime.fail` reaches every predecessor that passes it on, but its global is defined once.
+    if (emitted_.emplace(def).second) define_message(global, tuple2str(fail->arg()));
 
     bb.tail("call i32 @puts(ptr {})", global);
     bb.tail("call i32 @fflush(ptr null)");
@@ -66,12 +67,13 @@ void Emitter::emit_fail(ll::BB& bb, const Def* def) {
 void Emitter::emit_assert(ll::BB& bb, const Def* def) {
     auto check     = Axm::expect<runtime::assert>(def, "a runtime assertion");
     auto condition = check->arg()->proj(3, 1);
-    auto message   = tuple2str(check->arg()->proj(3, 2));
-    auto global    = message_global(def, "assert_msg", message);
+    auto global    = std::format("@.mimir_assert_msg_{}", def->gid());
     auto helper    = std::format("@.mimir_assert_{}", def->gid());
 
-    // A branch cannot be spliced into the middle of a basic block, so the check lives in its own function.
-    std::print(vars_decls_,
+    if (emitted_.emplace(def).second) {
+        define_message(global, tuple2str(check->arg()->proj(3, 2)));
+        // A branch cannot be spliced into the middle of a basic block, so the check lives in its own function.
+        std::print(vars_decls_,
                "define internal void {}(i1 %condition) {{\n"
                "entry:\n"
                "    br i1 %condition, label %success, label %failure\n"
@@ -84,6 +86,7 @@ void Emitter::emit_assert(ll::BB& bb, const Def* def) {
                "    ret void\n"
                "}}\n\n",
                helper, global);
+    }
 
     emit_unsafe(check->arg()->proj(3, 0));
     bb.tail("call void {}(i1 {})", helper, emit(condition));

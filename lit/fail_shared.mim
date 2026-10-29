@@ -1,0 +1,41 @@
+// RUN: rm -f fail_shared.ll
+// RUN: %mim %s
+// RUN: %FileCheck %s --input-file=fail_shared.ll --check-prefix=LLVM
+// RUN: clang fail_shared.ll -o %t -Wno-override-module
+// RUN: (! %t 2>&1) | %FileCheck %s
+
+// Both functions pass the same hash-consed `runtime.fail`, so both emit it, but its global is defined once.
+// LLVM-COUNT-1: c"shared failure msg\00"
+// LLVM-NOT: c"shared failure msg\00"
+// LLVM-COUNT-2: call i32 @puts(ptr
+
+plugin core;
+plugin mem;
+plugin runtime;
+plugin compile;
+
+extern lam _compile (): compile.Phase =
+    let optimize = compile.phases tt (compile.beta_red, compile.eta_conv);
+    compile.phases ff (
+        optimize,
+        compile.named "cps.conv",
+        optimize,
+        compile.lam_spec,
+        compile.single_erasure,
+        compile.branch_normalize,
+        compile.ret_wrap,
+        runtime.ll_emit,
+    );
+
+extern con fail_a (m: mem.M 0, return: Cn [mem.M 0, I32]) =
+    return (m, runtime.fail @(I32, 18) "shared failure msg");
+
+extern con fail_b (m: mem.M 0, return: Cn [mem.M 0, I32]) =
+    return (m, runtime.fail @(I32, 18) "shared failure msg");
+
+extern con main (m: mem.M 0, argc: I32,
+                 argv: mem.Ptr (mem.Ptr (I8, 0), 0),
+                 return: Cn [mem.M 0, I32]) =
+    (fail_a, fail_b)#(core.icmp.sg (argc, 1I32)) (m, return);
+
+// CHECK: shared failure msg
