@@ -22,7 +22,7 @@ extern lam _compile (): compile.Phase =
         optimize,
         compile.lam_spec,
         compile.single_erasure,
-        compile.branch_normalize,
+        compile.dispatch_normalize,
         compile.ret_wrap,
         runtime.ll_emit,
     );
